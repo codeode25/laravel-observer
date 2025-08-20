@@ -2,26 +2,48 @@
 
 namespace App\Services;
 
+use SplSubject;
+use SplObserver;
 use App\Models\User;
 use App\Mail\WelcomeMail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
-class RegistrationService
+class RegistrationService implements SplSubject
 {
+    private array $observers = [];
+    private ?User $user = null;
+
+    public function attach(SplObserver $observer): void 
+    {
+        $this->observers[] = $observer;
+    }
+
+    public function detach(SplObserver $observer): void 
+    {
+        $this->observers = array_filter($this->observers, fn ($o) => $o != $observer);
+    }
+
+    public function notify(): void 
+    {
+        foreach ($this->observers as $observer) {
+            $observer->update($this);
+        }
+    }
+
     public function register(array $data): User
     {
         // THE SUBJECT
-        $user = User::create($data);
+        $this->user = User::create($data);
 
         // SIDE EFFECTS
+        $this->notify();
 
-        // Log the registration (directly coupled here)
-        Log::info("New user registered: {$user->email}");
+        return $this->user;
+    }
 
-        // Send a welcome email (directly coupled here)
-        Mail::to($user->email)->send(new WelcomeMail($user->name));
-
-        return $user;
+    public function getUser(): ?User
+    {
+        return $this->user;
     }
 }
